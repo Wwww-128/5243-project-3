@@ -8,11 +8,11 @@ library(RPostgres)
 # -----------------------------
 questions <- tribble(
   ~id, ~question, ~option1, ~option2, ~option3, ~option4, ~answer,
-  1, "What color is the sky on a clear day?", "Blue", "Green", "Red", "Yellow", "Blue",
-  2, "How many days are in a week?", "5", "6", "7", "8", "7",
-  3, "Which animal says 'meow'?", "Dog", "Cat", "Cow", "Bird", "Cat",
-  4, "What is the opposite of hot?", "Warm", "Cold", "Dry", "Soft", "Cold",
-  5, "Which season comes after spring?", "Winter", "Autumn", "Summer", "Rainy", "Summer"
+  1, "Which of the following animals is a mammal?", "Shark", "Dolphin", "Turtle", "Eagle", "Dolphin",
+  2, "Which of the following is the largest continent?", "Africa", "Europe", "Asia", "Antarctica", "Asia",
+  3, "Which of the following is NOT a gas at room temperature?", "Oxygen", "Nitrogen", "Carbon dioxide", "Water", "Water",
+  4, "If you roll a fair six-sided die, what is the probability of getting a number greater than 4?", "1/6", "1/3", "1/2", "2/3", "1/3",
+  5, "Which of the following is NOT a prime number?", "2", "3", "4", "5", "4"
 )
 
 # -----------------------------
@@ -21,12 +21,12 @@ questions <- tribble(
 get_db_connection <- function() {
   DBI::dbConnect(
     drv = RPostgres::Postgres(),
-    host = Sys.getenv("SUPABASE_DB_HOST"),
-    port = as.integer(Sys.getenv("SUPABASE_DB_PORT")),
-    dbname = Sys.getenv("SUPABASE_DB_NAME"),
-    user = Sys.getenv("SUPABASE_DB_USER"),
-    password = Sys.getenv("SUPABASE_DB_PASSWORD"),
-    sslmode = Sys.getenv("SUPABASE_DB_SSLMODE", "require")
+    host = "aws-1-us-west-2.pooler.supabase.com",
+    port = 5432,
+    dbname = "postgres",
+    user = "postgres.vrnffoesrfwutoyovfqz",
+    password = "5243-project-3",
+    sslmode = "require"
   )
 }
 
