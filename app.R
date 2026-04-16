@@ -1,10 +1,17 @@
 library(shiny)
 library(tibble)
-library(readr)
+library(googlesheets4)
 
-# -----------------------------
-# Question data: simple general knowledge
-# -----------------------------
+sheet_id <- "1kZoM0_kYe9yGh1kvT2hD0gIx6T6AWKErSJ21eUDWwYY"
+
+options(gargle_oauth_cache = ".secrets")
+
+if (dir.exists(".secrets")) {
+  gs4_auth(cache = ".secrets", email = TRUE)
+} else {
+  gs4_auth(cache = ".secrets", email = TRUE)
+}
+
 questions <- tribble(
   ~id, ~question, ~option1, ~option2, ~option3, ~option4, ~answer,
   1, "What color is the sky on a clear day?", "Blue", "Green", "Red", "Yellow", "Blue",
@@ -14,55 +21,20 @@ questions <- tribble(
   5, "Which season comes after spring?", "Winter", "Autumn", "Summer", "Rainy", "Summer"
 )
 
-# -----------------------------
-# File for saving responses
-# -----------------------------
-data_file <- "responses.csv"
-
-if (!file.exists(data_file)) {
-  write_csv(
-    tibble(
-      user_id = character(),
-      group = character(),
-      start_time = character(),
-      submit_time = character(),
-      duration_sec = numeric(),
-      score = numeric(),
-      completed = integer(),
-      satisfaction = numeric(),
-      ease_of_use = numeric(),
-      q1 = character(),
-      q2 = character(),
-      q3 = character(),
-      q4 = character(),
-      q5 = character()
-    ),
-    data_file
-  )
-}
-
 save_response <- function(row_df) {
-  write.table(
-    row_df,
-    file = data_file,
-    sep = ",",
-    row.names = FALSE,
-    col.names = FALSE,
-    append = TRUE
-  )
+  tryCatch({
+    sheet_append(ss = sheet_id, data = row_df)
+    list(success = TRUE, message = "Saved")
+  }, error = function(e) {
+    list(success = FALSE, message = e$message)
+  })
 }
 
-# -----------------------------
-# UI
-# -----------------------------
 ui <- fluidPage(
   titlePanel("A/B Quiz App"),
   uiOutput("main_ui")
 )
 
-# -----------------------------
-# Server
-# -----------------------------
 server <- function(input, output, session) {
 
   user_id <- paste0(as.integer(Sys.time()), "_", sample(10000:99999, 1))
@@ -74,20 +46,14 @@ server <- function(input, output, session) {
     score = 0,
     submit_time = NA,
     duration_sec = NA,
-
-    # For Version B
     current_question = 1,
     b_score = 0,
     b_answers = rep(NA_character_, 5),
     show_feedback = FALSE,
     feedback_text = NULL,
-    feedback_color = NULL,
-    answer_locked = FALSE
+    feedback_color = NULL
   )
 
-  # -----------------------------
-  # Main UI
-  # -----------------------------
   output$main_ui <- renderUI({
 
     if (group == "A") {
@@ -96,50 +62,25 @@ server <- function(input, output, session) {
         h3("Version A"),
         p("Please answer all 5 questions and click submit at the end."),
 
-        radioButtons(
-          "q1", questions$question[1],
-          choices = c(
-            questions$option1[1], questions$option2[1],
-            questions$option3[1], questions$option4[1]
-          ),
-          selected = character(0)
-        ),
+        radioButtons("q1", questions$question[1],
+                     choices = c(questions$option1[1], questions$option2[1], questions$option3[1], questions$option4[1]),
+                     selected = character(0)),
 
-        radioButtons(
-          "q2", questions$question[2],
-          choices = c(
-            questions$option1[2], questions$option2[2],
-            questions$option3[2], questions$option4[2]
-          ),
-          selected = character(0)
-        ),
+        radioButtons("q2", questions$question[2],
+                     choices = c(questions$option1[2], questions$option2[2], questions$option3[2], questions$option4[2]),
+                     selected = character(0)),
 
-        radioButtons(
-          "q3", questions$question[3],
-          choices = c(
-            questions$option1[3], questions$option2[3],
-            questions$option3[3], questions$option4[3]
-          ),
-          selected = character(0)
-        ),
+        radioButtons("q3", questions$question[3],
+                     choices = c(questions$option1[3], questions$option2[3], questions$option3[3], questions$option4[3]),
+                     selected = character(0)),
 
-        radioButtons(
-          "q4", questions$question[4],
-          choices = c(
-            questions$option1[4], questions$option2[4],
-            questions$option3[4], questions$option4[4]
-          ),
-          selected = character(0)
-        ),
+        radioButtons("q4", questions$question[4],
+                     choices = c(questions$option1[4], questions$option2[4], questions$option3[4], questions$option4[4]),
+                     selected = character(0)),
 
-        radioButtons(
-          "q5", questions$question[5],
-          choices = c(
-            questions$option1[5], questions$option2[5],
-            questions$option3[5], questions$option4[5]
-          ),
-          selected = character(0)
-        ),
+        radioButtons("q5", questions$question[5],
+                     choices = c(questions$option1[5], questions$option2[5], questions$option3[5], questions$option4[5]),
+                     selected = character(0)),
 
         actionButton("submit_quiz_a", "Submit Quiz")
       )
@@ -172,18 +113,15 @@ server <- function(input, output, session) {
           p(style = "font-size:18px; font-weight:600;", questions$question[q_num]),
 
           radioButtons(
-            inputId = "b_answer",
-            label = NULL,
+            "b_answer",
+            NULL,
             choices = choices_current,
             selected = character(0)
           ),
 
           if (rv$show_feedback) {
             div(
-              style = paste0(
-                "font-weight:bold; margin-top:10px; margin-bottom:12px; color:",
-                rv$feedback_color, ";"
-              ),
+              style = paste0("font-weight:bold; color:", rv$feedback_color, "; margin-bottom:12px;"),
               rv$feedback_text
             )
           },
@@ -198,49 +136,37 @@ server <- function(input, output, session) {
         tagList(
           h3("Version B"),
           h4("You have completed all questions."),
-          p(paste("Your current score is", rv$b_score, "out of", nrow(questions), ".")),
+          p(paste("Your current score is", rv$b_score, "out of 5.")),
           actionButton("finish_b", "Finish Quiz")
         )
       }
     }
   })
 
-  # -----------------------------
-  # Version A: submit all at once
-  # -----------------------------
   observeEvent(input$submit_quiz_a, {
     req(input$q1, input$q2, input$q3, input$q4, input$q5)
 
     answers <- c(input$q1, input$q2, input$q3, input$q4, input$q5)
-    correct_answers <- questions$answer
-    score <- sum(answers == correct_answers)
-
-    submit_time <- Sys.time()
-    duration_sec <- as.numeric(difftime(submit_time, start_time, units = "secs"))
-
+    rv$score <- sum(answers == questions$answer)
+    rv$submit_time <- Sys.time()
+    rv$duration_sec <- as.numeric(difftime(rv$submit_time, start_time, units = "secs"))
     rv$submitted_quiz <- TRUE
-    rv$score <- score
-    rv$submit_time <- submit_time
-    rv$duration_sec <- duration_sec
 
-    showModal(
-      modalDialog(
-        title = "Short Feedback",
-        p(paste("Your score is", score, "out of 5.")),
-        sliderInput("satisfaction", "Overall satisfaction", min = 1, max = 5, value = 3),
-        sliderInput("ease_of_use", "How easy was the app to use?", min = 1, max = 5, value = 3),
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton("submit_feedback_a", "Submit Feedback")
-        ),
-        easyClose = FALSE
-      )
-    )
+    showModal(modalDialog(
+      title = "Short Feedback",
+      p(paste("Your score is", rv$score, "out of 5.")),
+      sliderInput("satisfaction", "Overall satisfaction", 1, 5, 3),
+      sliderInput("ease_of_use", "How easy was the app to use?", 1, 5, 3),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("submit_feedback_a", "Submit Feedback")
+      ),
+      easyClose = FALSE
+    ))
   })
 
   observeEvent(input$submit_feedback_a, {
-    req(rv$submitted_quiz)
-    req(input$satisfaction, input$ease_of_use)
+    req(rv$submitted_quiz, input$satisfaction, input$ease_of_use)
 
     row_df <- tibble(
       user_id = user_id,
@@ -259,31 +185,31 @@ server <- function(input, output, session) {
       q5 = input$q5
     )
 
-    save_response(row_df)
-
+    res <- save_response(row_df)
     removeModal()
 
-    showModal(
-      modalDialog(
+    if (res$success) {
+      showModal(modalDialog(
         title = "Thank you!",
         "Your response has been recorded successfully.",
         easyClose = TRUE,
         footer = modalButton("Close")
-      )
-    )
+      ))
+    } else {
+      showModal(modalDialog(
+        title = "Save failed",
+        paste("Google Sheets error:", res$message),
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+    }
   })
 
-  # -----------------------------
-  # Version B: one question at a time
-  # -----------------------------
   observeEvent(input$submit_question_b, {
-    req(group == "B")
-    req(rv$current_question <= nrow(questions))
-    req(input$b_answer)
+    req(group == "B", rv$current_question <= 5, input$b_answer)
 
     q_num <- rv$current_question
     correct_answer <- questions$answer[q_num]
-
     rv$b_answers[q_num] <- input$b_answer
 
     if (input$b_answer == correct_answer) {
@@ -299,9 +225,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$next_question_b, {
-    req(group == "B")
-    req(rv$show_feedback)
-
+    req(group == "B", rv$show_feedback)
     rv$current_question <- rv$current_question + 1
     rv$show_feedback <- FALSE
     rv$feedback_text <- NULL
@@ -310,34 +234,26 @@ server <- function(input, output, session) {
 
   observeEvent(input$finish_b, {
     req(group == "B")
-
-    submit_time <- Sys.time()
-    duration_sec <- as.numeric(difftime(submit_time, start_time, units = "secs"))
-
-    rv$submitted_quiz <- TRUE
     rv$score <- rv$b_score
-    rv$submit_time <- submit_time
-    rv$duration_sec <- duration_sec
+    rv$submit_time <- Sys.time()
+    rv$duration_sec <- as.numeric(difftime(rv$submit_time, start_time, units = "secs"))
+    rv$submitted_quiz <- TRUE
 
-    showModal(
-      modalDialog(
-        title = "Short Feedback",
-        p(paste("Your score is", rv$b_score, "out of 5.")),
-        sliderInput("satisfaction_b", "Overall satisfaction", min = 1, max = 5, value = 3),
-        sliderInput("ease_of_use_b", "How easy was the app to use?", min = 1, max = 5, value = 3),
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton("submit_feedback_b", "Submit Feedback")
-        ),
-        easyClose = FALSE
-      )
-    )
+    showModal(modalDialog(
+      title = "Short Feedback",
+      p(paste("Your score is", rv$score, "out of 5.")),
+      sliderInput("satisfaction_b", "Overall satisfaction", 1, 5, 3),
+      sliderInput("ease_of_use_b", "How easy was the app to use?", 1, 5, 3),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("submit_feedback_b", "Submit Feedback")
+      ),
+      easyClose = FALSE
+    ))
   })
 
   observeEvent(input$submit_feedback_b, {
-    req(group == "B")
-    req(rv$submitted_quiz)
-    req(input$satisfaction_b, input$ease_of_use_b)
+    req(group == "B", rv$submitted_quiz, input$satisfaction_b, input$ease_of_use_b)
 
     row_df <- tibble(
       user_id = user_id,
@@ -356,22 +272,25 @@ server <- function(input, output, session) {
       q5 = rv$b_answers[5]
     )
 
-    save_response(row_df)
-
+    res <- save_response(row_df)
     removeModal()
 
-    showModal(
-      modalDialog(
+    if (res$success) {
+      showModal(modalDialog(
         title = "Thank you!",
         "Your response has been recorded successfully.",
         easyClose = TRUE,
         footer = modalButton("Close")
-      )
-    )
+      ))
+    } else {
+      showModal(modalDialog(
+        title = "Save failed",
+        paste("Google Sheets error:", res$message),
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+    }
   })
 }
 
-# -----------------------------
-# Run app
-# -----------------------------
 shinyApp(ui = ui, server = server)
