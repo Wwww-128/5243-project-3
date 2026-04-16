@@ -1,125 +1,128 @@
 # A/B Quiz App (STAT 5243 Project)
 
+## Live App
+
+The quiz app is deployed online and can be accessed here:
+
+ https://w-analytics.shinyapps.io/5243-project-3/
+
+Users can directly open this link and complete the quiz.
+
+---
+
 ## Overview
 
-This project is an A/B testing quiz application built with **R Shiny**.
+This project is an **A/B testing quiz application** built with **R Shiny**.
 
-* **Version A**: Answer all questions at once, then submit
-* **Version B**: Answer one question at a time with immediate feedback
+Users are randomly assigned to one of two versions:
 
-All responses are automatically saved to a shared **Google Sheet**.
+* **Version A**: answer all questions first, then submit at the end
+* **Version B**: answer one question at a time with immediate feedback
 
----
-
-# Quick Start
-
-Follow these steps exactly to run the app locally.
+All responses are automatically saved to a **Supabase PostgreSQL database**.
 
 ---
 
-## 1. Install R (if not installed)
+## How to Use (Testing)
+
+1. Open the app using the link above
+2. Complete the quiz (you will be randomly assigned to A or B)
+3. Submit your answers and feedback
+4. Your data will be automatically recorded
 
 ---
 
-## 2. Open Terminal and go to project folder
+## A/B Test Design
 
-```bash
-cd path/to/5243-project-3
-```
+### Version A
+
+* All 5 questions shown at once
+* Submit at the end
+* No immediate feedback
+
+### Version B
+
+* One question at a time
+* Submit each answer
+* Immediate feedback after each question
 
 ---
 
-## 3. Start R
+## Data Storage
 
-```bash
-R
-```
-
-You should now see something like:
+All responses are stored in the Supabase table:
 
 ```text
->
+quiz_responses
 ```
-
----
-
-## 4. Install required packages (ONLY FIRST TIME)
-
-Copy and run:
-
-```r
-install.packages("shiny")
-install.packages("tibble")
-install.packages("googlesheets4")
-```
-
----
-
-## 5. Load libraries
-
-```r
-library(shiny)
-library(tibble)
-library(googlesheets4)
-```
-
----
-
-## 6. Google Login (IMPORTANT)
-
-Run:
-
-```r
-options(gargle_oauth_cache = ".secrets")
-gs4_auth()
-```
-
-👉 A browser window will open
-👉 Log in with the Google account that has access to the Sheet
-
----
-
-## 7. Run the app
-
-```r
-shiny::runApp("app.R")
-```
-
----
-
-## 8. Open the app
-
-It will open automatically in your browser:
-
-```text
-http://127.0.0.1:xxxx
-```
-
----
-
-# 🧪 How to Test
-
-1. Open the app
-2. You will be randomly assigned to **Version A or B**
-3. Complete the quiz
-4. Submit answers and feedback
-
----
-
-# 📊 Where the Data Goes
-
-All responses are saved automatically to:
-
-👉 **Google Sheet (shared with the team)**
 
 Each row contains:
 
 * user_id
-* group (A or B)
-* timestamps
+* group_name (A / B)
+* start_time
+* submit_time
+* duration_sec
 * score
-* answers (q1–q5)
-* satisfaction ratings
+* satisfaction
+* ease_of_use
+* q1–q5
+
+---
+
+## How to Access Data (For Analysis)
+
+### Step 1: Install packages
+
+```r
+install.packages("DBI", repos = "https://cloud.r-project.org")
+install.packages("RPostgres", repos = "https://cloud.r-project.org")
+```
+
+### Step 2: Load packages
+
+```r
+library(DBI)
+library(RPostgres)
+```
+
+### Step 3: Connect to database
+
+```r
+con <- dbConnect(
+  RPostgres::Postgres(),
+  host = "aws-1-us-west-2.pooler.supabase.com",
+  port = 5432,
+  dbname = "postgres",
+  user = "postgres.vrnffoesrfwutoyovfqz",
+  password = "5243-project-3",
+  sslmode = "require"
+)
+```
+
+### Step 4: Load data
+
+```r
+data <- dbReadTable(con, "quiz_responses")
+```
+
+### Step 5: Disconnect
+
+```r
+dbDisconnect(con)
+```
+
+---
+
+## Key Variables for A/B Analysis
+
+Use these columns for comparison:
+
+* `group_name` → A vs B
+* `score`
+* `duration_sec`
+* `satisfaction`
+* `ease_of_use`
 
 ---
 
